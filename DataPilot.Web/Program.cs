@@ -5,6 +5,7 @@ using DataPilot.Web.Data;
 using DataPilot.Web.Services;
 using DataPilot.Web.Providers.Db;
 using DataPilot.Web.Providers.Llm;
+using DataPilot.Web.Providers.Mcp;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -36,6 +37,23 @@ builder.Services.AddSingleton<SqlSafetyGuard>();
 builder.Services.AddScoped<QueryService>();
 builder.Services.AddScoped<SchemaService>();
 builder.Services.AddSingleton<LlmClientFactory>();
+
+// MCP Configuration
+var mcpConfig = new McpServerConfiguration
+{
+    Name = builder.Configuration["Mcp:Name"] ?? "DataPilot MCP Server",
+    Version = builder.Configuration["Mcp:Version"] ?? "1.0.0",
+    Description = builder.Configuration["Mcp:Description"] ?? "DataPilot Model Context Protocol Server",
+    ServerUrl = builder.Configuration["Mcp:ServerUrl"] ?? "http://localhost:3000",
+    EnableResources = builder.Configuration.GetValue<bool>("Mcp:EnableResources", true),
+    EnableTools = builder.Configuration.GetValue<bool>("Mcp:EnableTools", true)
+};
+
+// MCP services
+builder.Services.AddSingleton(mcpConfig);
+builder.Services.AddScoped<IMcpServer, DataPilotMcpServer>();
+builder.Services.AddScoped<IMcpClientFactory, McpClientFactory>();
+builder.Services.AddScoped<McpService>();
 
 // DB connector factory and connectors
 builder.Services.AddSingleton<IDbConnectorFactory, DbConnectorFactory>();

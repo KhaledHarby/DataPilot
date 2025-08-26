@@ -24,6 +24,8 @@ DataPilot is a modern ASP.NET MVC web application that transforms natural langua
 - **Schema Relations**: Include foreign key relationships in prompts
 - **Dashboard Analytics**: Visual insights into database usage and performance
 - **Export Capabilities**: CSV export for query results
+- **MCP Server**: Model Context Protocol server for enhanced LLM interactions
+- **MCP Dashboard**: Interactive dashboard for MCP server management
 
 ## 🏗️ Architecture
 
@@ -107,7 +109,7 @@ Create `appsettings.Development.json` or use User Secrets:
 ```json
 {
   "ConnectionStrings": {
-    "MetaDb": "Server=localhost;Database=DataPilotMeta;Trusted_Connection=true;TrustServerCertificate=true;Min Pool Size=20;Max Pool Size=200;Connect Timeout=30;Pooling=true;"
+    "MetaDb": "Server=your-server;Database=DataPilot;User ID=your-username;Password=your-password;Pooling=true;Min Pool Size=20;Max Pool Size=200;Connect Timeout=30;TrustServerCertificate=True;"
   },
   "LLM": {
     "DefaultProvider": "OpenAI",
@@ -116,12 +118,18 @@ Create `appsettings.Development.json` or use User Secrets:
     "MaxTokens": 2000,
     "Providers": {
       "OpenAI": {
-        "ApiKey": "your-openai-api-key"
+        "ApiKey": "your-openai-api-key-here"
+      },
+      "Claude": {
+        "ApiKey": "your-claude-api-key-here"
+      },
+      "Gemini": {
+        "ApiKey": "your-gemini-api-key-here"
       },
       "Azure": {
-        "Endpoint": "https://your-resource.openai.azure.com/",
+        "Endpoint": "your-azure-endpoint",
         "ApiKey": "your-azure-api-key",
-        "Deployment": "gpt-4",
+        "Deployment": "your-deployment-name",
         "ApiVersion": "2024-02-15-preview"
       },
       "Ollama": {
@@ -131,6 +139,14 @@ Create `appsettings.Development.json` or use User Secrets:
   },
   "Auth": {
     "DevBypass": true
+  },
+  "Mcp": {
+    "Name": "DataPilot MCP Server",
+    "Version": "1.0.0",
+    "Description": "DataPilot Model Context Protocol Server",
+    "ServerUrl": "http://localhost:3000",
+    "EnableResources": true,
+    "EnableTools": true
   }
 }
 ```
@@ -209,6 +225,23 @@ The dashboard provides an overview of:
 - Add business context to tables and columns
 - Improve AI query generation accuracy
 - Maintain consistent terminology
+
+### 6. MCP (Model Context Protocol) Server
+
+#### MCP Dashboard
+1. Navigate to **MCP Dashboard** from the main menu
+2. View server information and capabilities
+3. Explore available resources (database schema, connections, query history)
+4. Test available tools (list_connections, get_schema, execute_query, etc.)
+5. Connect to external MCP servers
+6. Execute MCP tools with custom arguments
+
+#### MCP Features
+- **Resources**: Access database schema, connection info, and query history
+- **Tools**: Execute database operations through MCP protocol
+- **External Connections**: Connect to other MCP-compatible servers
+- **Tool Execution**: Run MCP tools with JSON arguments
+- **Resource Viewer**: View resource content in modal dialogs
 
 ## 🔧 Configuration
 
@@ -390,6 +423,15 @@ Enable detailed logging in `appsettings.Development.json`:
 - `POST /Chat/GetColumns` - Get columns for table
 - `POST /Chat/SaveColumnMetadata` - Save column metadata
 
+#### McpController
+- `GET /mcp` - MCP Dashboard UI
+- `GET /mcp/info` - Get MCP server information
+- `POST /mcp/list_resources` - List available resources
+- `POST /mcp/list_tools` - List available tools
+- `POST /mcp/read_resource` - Read specific resource content
+- `POST /mcp/call_tool` - Execute MCP tool
+- `POST /mcp/connect` - Connect to external MCP server
+
 #### ConnectionsController
 - `GET /Connections` - List connections
 - `GET /Connections/Create` - Create connection form
@@ -479,12 +521,12 @@ public class SchemaColumn
 ## 🔮 Future Enhancements
 
 ### Planned Features
-- **MCP Server Integration**: Model Context Protocol for enhanced LLM capabilities
 - **Query Templates**: Pre-built query patterns
 - **Advanced Analytics**: Query performance insights
 - **Collaboration**: Share queries and schemas
 - **API Endpoints**: REST API for integration
 - **Mobile Support**: Responsive mobile interface
+- **Enhanced MCP**: Additional MCP tools and resources
 
 ### Database Support
 - **PostgreSQL**: Native PostgreSQL connector

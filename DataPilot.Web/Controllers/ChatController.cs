@@ -11,6 +11,7 @@ using DataPilot.Web.Services;
 using DataPilot.Web.Providers.Db;
 using Microsoft.AspNetCore.Hosting;
 using DataPilot.Web.Extensions;
+using DataPilot.Web.Providers.Mcp;
 
 namespace DataPilot.Web.Controllers;
 
@@ -22,8 +23,9 @@ public class ChatController : Controller
     private readonly IWebHostEnvironment _env;
     private readonly QueryService _queryService;
     private readonly CryptoService _crypto;
+    private readonly McpService _mcpService;
 
-    public ChatController(LlmClientFactory factory, IConfiguration cfg, DataPilotMetaDbContext db, IWebHostEnvironment env, QueryService queryService, CryptoService crypto)
+    public ChatController(LlmClientFactory factory, IConfiguration cfg, DataPilotMetaDbContext db, IWebHostEnvironment env, QueryService queryService, CryptoService crypto, McpService mcpService)
     {
         _factory = factory;
         _cfg = cfg;
@@ -31,6 +33,7 @@ public class ChatController : Controller
         _env = env;
         _queryService = queryService;
         _crypto = crypto;
+        _mcpService = mcpService;
     }
 
     public async Task<IActionResult> Index()
@@ -384,6 +387,76 @@ Based on the selected schema above, generate a SQL query that addresses the user
         {
             // Log the exception for debugging
             System.Diagnostics.Debug.WriteLine($"RunSql error: {ex}");
+            return Json(new { success = false, error = ex.Message });
+        }
+    }
+
+    /// <summary>
+    /// Generate SQL using MCP-enhanced context
+    /// </summary>
+    [HttpPost]
+    public async Task<IActionResult> GenerateSqlWithMcp(string prompt, Guid connectionId, string? customContext = null)
+    {
+        try
+        {
+            var conn = await _db.Connections.FirstOrDefaultAsync(c => c.Id == connectionId);
+            if (conn == null)
+            {
+                return Json(new { success = false, error = "Connection not found" });
+            }
+
+            // Use MCP service to get enhanced context
+            var enhancedContext = await _mcpService.GetEnhancedContextAsync(connectionId.ToString(), customContext);
+
+            // Load system instruction
+            string systemPrompt;
+            try
+            {
+                var path = System.IO.Path.Combine(_env.ContentRootPath, "Prompts", "sql_generation.md");
+                systemPrompt = System.IO.File.Exists(path) ? System.IO.File.ReadAllText(path) : "You generate safe, read-only SQL using the provided schema.";
+            }
+            catch { systemPrompt = "You generate safe, read-only SQL using the provided schema."; }
+
+            // Add MCP context to the prompt
+            var fullPrompt = $"{systemPrompt}\n\n## ENHANCED CONTEXT (via MCP)\n{enhancedContext}\n\n## USER QUERY\n{prompt}";
+
+            // For now, use the existing LLM client
+            var client = _factory.Create(LlmProvider.OpenAI);
+            var messages = new List<LlmMessage>
+            {
+                new("system", fullPrompt),
+                new("user", prompt)
+            };
+
+            var sql = await client.ChatAsync(messages, new LlmRequestOptions("gpt-4o-mini"));
+            sql = sql.Replace("`", "").Replace("sql", "");
+
+            return Json(new { sql, success = true, enhancedContext });
+        }
+        catch (Exception ex)
+        {
+            return Json(new { success = false, error = ex.Message });
+        }
+    }
+
+    /// <summary>
+    /// Execute query with MCP-enhanced analysis
+    /// </summary>
+    [HttpPost]
+    public async Task<IActionResult> ExecuteQueryWithMcp(string naturalLanguageQuery, Guid connectionId, string? customContext = null)
+    {
+        try
+        {
+            var result = await _mcpService.ExecuteQueryWithMcpContextAsync(
+                connectionId.ToString(), 
+                naturalLanguageQuery, 
+                customContext
+            );
+
+            return Json(new { success = true, result });
+        }
+        catch (Exception ex)
+        {
             return Json(new { success = false, error = ex.Message });
         }
     }
