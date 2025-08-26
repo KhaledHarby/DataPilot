@@ -1,0 +1,443 @@
+@{
+    ViewData["Title"] = "Chat-to-SQL";
+}
+<div class="container-fluid py-4">
+    <div class="row">
+        <!-- Left Panel - Configuration -->
+        <div class="col-lg-3">
+            <div class="card shadow-sm border-0 mb-4">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0"><i class="fas fa-cog me-2"></i>Configuration</h5>
+                </div>
+                <div class="card-body">
+                    <div class="mb-3">
+                        <label class="form-label fw-bold text-muted small">AI Provider</label>
+                        <select id="provider" class="form-select form-select-sm">
+                            @{
+                                var providers = ViewData["Providers"] as IEnumerable<string> ?? new List<string>();
+                                var defProv = ViewData["DefaultProvider"] as string ?? "";
+                            }
+                            @foreach (var p in providers)
+                            {
+                                var isSel = string.Equals(p, defProv, System.StringComparison.OrdinalIgnoreCase);
+                                <option value="@p" selected="@(isSel ? "selected" : null)">@p</option>
+                            }
+                        </select>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label fw-bold text-muted small">Model</label>
+                        <input id="model" class="form-control form-control-sm" value="@((ViewData["DefaultModel"] as string) ?? "")" placeholder="e.g. gpt-4o, llama3.1" />
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label fw-bold text-muted small">Database Connection</label>
+                        <select id="connectionId" class="form-select form-select-sm">
+                            @{
+                                var conns = ViewData["Connections"] as IEnumerable<DataPilot.Web.Data.DbConnectionInfo> ?? new List<DataPilot.Web.Data.DbConnectionInfo>();
+                            }
+                            @foreach (var c in conns)
+                            {
+                                <option value="@c.Id">@c.Name (@c.Provider)</option>
+                            }
+                        </select>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Right Panel - Chat Interface -->
+        <div class="col-lg-9">
+            <div class="card shadow-sm border-0">
+                <div class="card-header bg-gradient-primary text-white">
+                    <h4 class="mb-0"><i class="fas fa-comments me-2"></i>Chat-to-SQL</h4>
+                </div>
+                <div class="card-body p-0">
+                    <!-- Chat Messages Area -->
+                    <div id="chatMessages" class="p-4" style="height: 400px; overflow-y: auto; background: #f8f9fa;">
+                        <div class="text-center text-muted">
+                            <i class="fas fa-robot fa-3x mb-3"></i>
+                            <p>Ask me anything about your database and I'll generate SQL for you!</p>
+                        </div>
+                    </div>
+
+                    <!-- Input Area -->
+                    <div class="border-top p-4">
+                        <div class="row g-2">
+                            <div class="col-10">
+                                <div class="input-group">
+                                    <textarea id="prompt" class="form-control" rows="2" placeholder="Ask a question to generate SQL... (e.g., 'Show me all users from the last 30 days')" style="resize: none;"></textarea>
+                                    <button id="btnGen" class="btn btn-primary" type="button">
+                                        <i class="fas fa-magic me-1"></i>Generate
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="col-2">
+                                <button id="btnClear" class="btn btn-outline-secondary w-100" type="button">
+                                    <i class="fas fa-trash"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- SQL Query Panel -->
+            <div id="sqlPanel" class="card shadow-sm border-0 mt-4" style="display: none;">
+                <div class="card-header bg-success text-white">
+                    <h6 class="mb-0"><i class="fas fa-code me-2"></i>Generated SQL Query</h6>
+                </div>
+                <div class="card-body">
+                    <div class="mb-3">
+                        <textarea id="sql" class="form-control font-monospace" rows="6" readonly style="font-size: 0.9rem; background: #f8f9fa;"></textarea>
+                    </div>
+                    <div class="d-flex gap-2">
+                        <button id="btnRun" class="btn btn-success" disabled>
+                            <i class="fas fa-play me-1"></i>Execute Query
+                        </button>
+                        <button id="btnCopy" class="btn btn-outline-secondary">
+                            <i class="fas fa-copy me-1"></i>Copy SQL
+                        </button>
+                        <button id="btnEdit" class="btn btn-outline-primary">
+                            <i class="fas fa-edit me-1"></i>Edit SQL
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Results Panel -->
+            <div id="results" class="card shadow-sm border-0 mt-4" style="display: none;">
+                <div class="card-header bg-info text-white d-flex justify-content-between align-items-center">
+                    <h6 class="mb-0"><i class="fas fa-table me-2"></i>Query Results</h6>
+                    <span id="resultStats" class="badge bg-light text-dark"></span>
+                </div>
+                <div class="card-body p-0">
+                    <div id="resultTable" class="p-3"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Loading Modal -->
+<div class="modal fade" id="loadingModal" tabindex="-1" data-bs-backdrop="static">
+    <div class="modal-dialog modal-sm modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-body text-center p-4">
+                <div class="spinner-border text-primary mb-3" role="status">
+                    <span class="visually-hidden">Loading...</span>
+                </div>
+                <p class="mb-0" id="loadingText">Processing your request...</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+.bg-gradient-primary {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+}
+
+.font-monospace {
+    font-family: 'Courier New', monospace;
+}
+
+.chat-message {
+    margin-bottom: 1rem;
+    animation: fadeIn 0.3s ease-in;
+}
+
+.chat-message.user {
+    text-align: right;
+}
+
+.chat-message.assistant {
+    text-align: left;
+}
+
+.chat-bubble {
+    display: inline-block;
+    max-width: 80%;
+    padding: 0.75rem 1rem;
+    border-radius: 1rem;
+    word-wrap: break-word;
+}
+
+.chat-bubble.user {
+    background: #007bff;
+    color: white;
+    border-bottom-right-radius: 0.25rem;
+}
+
+.chat-bubble.assistant {
+    background: white;
+    color: #333;
+    border: 1px solid #dee2e6;
+    border-bottom-left-radius: 0.25rem;
+}
+
+@@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.table-responsive {
+    max-height: 500px;
+    overflow-y: auto;
+}
+
+.table th {
+    position: sticky;
+    top: 0;
+    background: white;
+    z-index: 1;
+}
+</style>
+
+<script>
+let chatHistory = [];
+
+function addChatMessage(content, isUser = false) {
+    const messagesContainer = document.getElementById('chatMessages');
+    const messageDiv = document.createElement('div');
+    messageDiv.className = `chat-message ${isUser ? 'user' : 'assistant'}`;
+    
+    const bubble = document.createElement('div');
+    bubble.className = `chat-bubble ${isUser ? 'user' : 'assistant'}`;
+    bubble.textContent = content;
+    
+    messageDiv.appendChild(bubble);
+    messagesContainer.appendChild(messageDiv);
+    messagesContainer.scrollTop = messagesContainer.scrollHeight;
+    
+    chatHistory.push({ content, isUser, timestamp: new Date() });
+}
+
+function showLoading(text = 'Processing your request...') {
+    document.getElementById('loadingText').textContent = text;
+    new bootstrap.Modal(document.getElementById('loadingModal')).show();
+}
+
+function hideLoading() {
+    bootstrap.Modal.getInstance(document.getElementById('loadingModal')).hide();
+}
+
+function copyToClipboard(text) {
+    navigator.clipboard.writeText(text).then(() => {
+        // Show toast notification
+        const toast = document.createElement('div');
+        toast.className = 'position-fixed top-0 end-0 p-3';
+        toast.style.zIndex = '9999';
+        toast.innerHTML = `
+            <div class="toast show" role="alert">
+                <div class="toast-header">
+                    <i class="fas fa-check text-success me-2"></i>
+                    <strong class="me-auto">Success</strong>
+                    <button type="button" class="btn-close" data-bs-dismiss="toast"></button>
+                </div>
+                <div class="toast-body">SQL copied to clipboard!</div>
+            </div>
+        `;
+        document.body.appendChild(toast);
+        setTimeout(() => toast.remove(), 3000);
+    });
+}
+
+// Event Listeners
+document.getElementById('btnGen').addEventListener('click', async () => {
+    const prompt = document.getElementById('prompt').value.trim();
+    if (!prompt) return;
+
+    const provider = document.getElementById('provider').value;
+    const model = document.getElementById('model').value;
+    const connectionId = document.getElementById('connectionId').value;
+
+    // Add user message to chat
+    addChatMessage(prompt, true);
+    document.getElementById('prompt').value = '';
+
+    showLoading('Generating SQL query...');
+
+    try {
+        const resp = await fetch('@Url.Action("GenerateSql")', { 
+            method: 'POST', 
+            headers: { 'Content-Type':'application/x-www-form-urlencoded' }, 
+            body: new URLSearchParams({ prompt, provider, model, connectionId }) 
+        });
+        const data = await resp.json();
+        
+        if (data.success && data.sql) {
+            document.getElementById('sql').value = data.sql;
+            document.getElementById('btnRun').disabled = false;
+            document.getElementById('sqlPanel').style.display = 'block';
+            
+            // Add assistant response to chat
+            addChatMessage(`Generated SQL query:\n\`\`\`sql\n${data.sql}\n\`\`\``, false);
+        } else {
+            addChatMessage('Sorry, I couldn\'t generate a SQL query. Please try rephrasing your question.', false);
+        }
+    } catch (ex) {
+        addChatMessage('An error occurred while generating the SQL query. Please try again.', false);
+    } finally {
+        hideLoading();
+    }
+});
+
+document.getElementById('btnRun').addEventListener('click', async () => {
+    const sql = document.getElementById('sql').value;
+    const connectionId = document.getElementById('connectionId').value;
+    if (!sql || !connectionId) return;
+
+    document.getElementById('btnRun').disabled = true;
+    document.getElementById('btnRun').innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Executing...';
+    
+    showLoading('Executing query...');
+    
+    try {
+        const resp = await fetch('@Url.Action("RunSql")', { 
+            method: 'POST', 
+            headers: { 'Content-Type':'application/x-www-form-urlencoded' }, 
+            body: new URLSearchParams({ sql, connectionId }) 
+        });
+        const data = await resp.json();
+        console.log(data); // Debug log
+        debugger;
+        
+        if (data.success) {
+            document.getElementById('resultStats').textContent = `${data.rowCount} rows in ${data.duration}ms`;
+            renderTable(data.data);
+            document.getElementById('results').style.display = 'block';
+            
+            // Add result to chat
+            addChatMessage(`Query executed successfully! Found ${data.rowCount} rows in ${data.duration}ms.`, false);
+        } else {
+            addChatMessage(`Error: ${data.error}`, false);
+        }
+    } catch (ex) {
+        addChatMessage('An error occurred while executing the query. Please try again.', false);
+    } finally {
+        document.getElementById('btnRun').disabled = false;
+        document.getElementById('btnRun').innerHTML = '<i class="fas fa-play me-1"></i>Execute Query';
+        hideLoading();
+    }
+});
+
+document.getElementById('btnCopy').addEventListener('click', () => {
+    const sql = document.getElementById('sql').value;
+    copyToClipboard(sql);
+});
+
+document.getElementById('btnEdit').addEventListener('click', () => {
+    const sqlTextarea = document.getElementById('sql');
+    sqlTextarea.readOnly = !sqlTextarea.readOnly;
+    const btn = document.getElementById('btnEdit');
+    if (sqlTextarea.readOnly) {
+        btn.innerHTML = '<i class="fas fa-edit me-1"></i>Edit SQL';
+        btn.className = 'btn btn-outline-primary';
+    } else {
+        btn.innerHTML = '<i class="fas fa-save me-1"></i>Save SQL';
+        btn.className = 'btn btn-primary';
+    }
+});
+
+document.getElementById('btnClear').addEventListener('click', () => {
+    document.getElementById('chatMessages').innerHTML = `
+        <div class="text-center text-muted">
+            <i class="fas fa-robot fa-3x mb-3"></i>
+            <p>Ask me anything about your database and I'll generate SQL for you!</p>
+        </div>
+    `;
+    document.getElementById('sqlPanel').style.display = 'none';
+    document.getElementById('results').style.display = 'none';
+    chatHistory = [];
+});
+
+// Enter key to submit
+document.getElementById('prompt').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        document.getElementById('btnGen').click();
+    }
+});
+
+function renderTable(dataTable) {
+    const container = document.getElementById('resultTable');
+    console.log('DataTable received:', dataTable); // Debug log
+    
+    if (!dataTable || !dataTable.rows || dataTable.rows.length === 0) {
+        container.innerHTML = '<div class="alert alert-info">No results</div>';
+        return;
+    }
+
+    const rows = dataTable.rows;
+    if (rows.length === 0) {
+        container.innerHTML = '<div class="alert alert-info">No results</div>';
+        return;
+    }
+
+    // Get column names from the first row
+    const columns = Object.keys(rows[0]);
+    
+    let html = '<div class="table-responsive"><table class="table table-sm table-striped table-hover">';
+    html += '<thead class="table-dark"><tr>';
+    columns.forEach(col => html += `<th>${col}</th>`);
+    html += '</tr></thead><tbody>';
+    
+    rows.forEach(row => {
+        html += '<tr>';
+        columns.forEach(col => {
+            const value = row[col];
+            // Handle null, undefined, and DBNull values
+            const displayValue = value === null || value === undefined || value === '' ? '<em class="text-muted">null</em>' : value;
+            html += `<td>${displayValue}</td>`;
+        });
+        html += '</tr>';
+    });
+    
+    html += '</tbody></table></div>';
+    
+    // Add export button
+    html += `
+        <div class="mt-3">
+            <button class="btn btn-outline-success btn-sm" onclick="exportToCSV()">
+                <i class="fas fa-download me-1"></i>Export CSV
+            </button>
+        </div>
+    `;
+    
+    container.innerHTML = html;
+}
+
+function exportToCSV() {
+    const table = document.querySelector('#resultTable table');
+    if (!table) return;
+    
+    const rows = [];
+    const headers = [];
+    
+    // Get headers
+    table.querySelectorAll('thead th').forEach(th => {
+        headers.push(th.textContent);
+    });
+    rows.push(headers.join(','));
+    
+    // Get data rows
+    table.querySelectorAll('tbody tr').forEach(tr => {
+        const cells = [];
+        tr.querySelectorAll('td').forEach(td => {
+            const text = td.textContent.replace(/"/g, '""');
+            cells.push(`"${text}"`);
+        });
+        rows.push(cells.join(','));
+    });
+    
+    const csv = rows.join('\n');
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'query_results.csv';
+    a.click();
+    window.URL.revokeObjectURL(url);
+}
+</script>

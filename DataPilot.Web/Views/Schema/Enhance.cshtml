@@ -1,0 +1,26 @@
+@{
+    ViewData["Title"] = "Schema Enhance";
+}
+<div class="container py-3">
+    <h2>Schema Enhance</h2>
+    <form method="post">
+        <div class="mb-3">
+            <label class="form-label">Columns JSON or list</label>
+            <textarea class="form-control" name="input" rows="6">@((string?)ViewData["Before"])</textarea>
+        </div>
+        <button class="btn btn-primary" type="submit">Enhance</button>
+    </form>
+    <div class="row mt-4">
+        <div class="col-md-6">
+            <h5>Before</h5>
+            <pre class="bg-body p-2 border rounded" style="white-space: pre-wrap;">@((string?)ViewData["Before"]) </pre>
+        </div>
+        <div class="col-md-6">
+            <h5>After (proposed)</h5>
+            <pre class="bg-body p-2 border rounded" style="white-space: pre-wrap;">@((string?)ViewData["After"]) </pre>
+            <form method="post" asp-action="Accept">
+                <button class="btn btn-success" type="submit">Accept</button>
+            </form>
+        </div>
+    </div>
+</div>

@@ -1,0 +1,46 @@
+@model System.Collections.Generic.List<DataPilot.Web.Data.DbConnectionInfo>
+@{
+    ViewData["Title"] = "Connections";
+}
+<div class="container py-3">
+    @if (TempData["SuccessMessage"] != null)
+    {
+        <div class="alert alert-success alert-dismissible fade show" role="alert">
+            <i class="fas fa-check-circle me-2"></i>@TempData["SuccessMessage"]
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+    }
+    @if (TempData["ErrorMessage"] != null)
+    {
+        <div class="alert alert-danger alert-dismissible fade show" role="alert">
+            <i class="fas fa-exclamation-triangle me-2"></i>@TempData["ErrorMessage"]
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+    }
+    <div class="d-flex justify-content-between mb-3">
+        <h2>Connections</h2>
+        <a class="btn btn-primary" asp-action="Create">Add Connection</a>
+    </div>
+    <table class="table table-striped">
+        <thead>
+            <tr><th>Name</th><th>Provider</th><th>Health</th><th>Last</th><th></th></tr>
+        </thead>
+        <tbody>
+        @foreach (var c in Model)
+        {
+            <tr>
+                <td>@c.Name</td>
+                <td>@c.Provider</td>
+                <td>@(c.IsHealthy ? "Healthy" : "Unhealthy")</td>
+                <td>@c.LastHealth</td>
+                <td class="text-end">
+                    <a class="btn btn-sm btn-outline-secondary" asp-action="Edit" asp-route-id="@c.Id">Edit</a>
+                    <a class="btn btn-sm btn-outline-danger" asp-action="Delete" asp-route-id="@c.Id">Delete</a>
+                </td>
+            </tr>
+        }
+        </tbody>
+    </table>
+</div>
+
+

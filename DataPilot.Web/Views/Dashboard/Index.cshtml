@@ -1,0 +1,338 @@
+@model DataPilot.Web.Controllers.DashboardViewModel
+@{
+    ViewData["Title"] = "Dashboard";
+}
+
+<div class="container-fluid py-4">
+    <!-- Welcome Section -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card bg-gradient-primary text-white border-0 shadow-sm">
+                <div class="card-body p-4">
+                    <div class="row align-items-center">
+                        <div class="col-md-8">
+                            <h2 class="mb-2"><i class="fas fa-rocket me-2"></i>Welcome to DataPilot</h2>
+                            <p class="mb-0 opacity-75">Your intelligent database assistant for natural language queries and schema management</p>
+                        </div>
+                        <div class="col-md-4 text-end">
+                            <div class="d-flex justify-content-end gap-3">
+                                <a href="@Url.Action("Create", "Connections")" class="btn btn-light">
+                                    <i class="fas fa-plus me-1"></i>Add Connection
+                                </a>
+                                <a href="@Url.Action("Index", "Chat")" class="btn btn-outline-light">
+                                    <i class="fas fa-comments me-1"></i>Start Chat
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Statistics Cards -->
+    <div class="row mb-4">
+        <div class="col-xl-3 col-md-6 mb-4">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-body">
+                    <div class="d-flex align-items-center">
+                        <div class="flex-shrink-0">
+                            <div class="bg-primary bg-opacity-10 rounded-circle p-3">
+                                <i class="fas fa-database fa-2x text-primary"></i>
+                            </div>
+                        </div>
+                        <div class="flex-grow-1 ms-3">
+                            <h4 class="mb-1">@Model.TotalConnections</h4>
+                            <p class="text-muted mb-0">Database Connections</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-xl-3 col-md-6 mb-4">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-body">
+                    <div class="d-flex align-items-center">
+                        <div class="flex-shrink-0">
+                            <div class="bg-success bg-opacity-10 rounded-circle p-3">
+                                <i class="fas fa-table fa-2x text-success"></i>
+                            </div>
+                        </div>
+                        <div class="flex-grow-1 ms-3">
+                            <h4 class="mb-1">@Model.TotalTables</h4>
+                            <p class="text-muted mb-0">Tables & Views</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-xl-3 col-md-6 mb-4">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-body">
+                    <div class="d-flex align-items-center">
+                        <div class="flex-shrink-0">
+                            <div class="bg-info bg-opacity-10 rounded-circle p-3">
+                                <i class="fas fa-columns fa-2x text-info"></i>
+                            </div>
+                        </div>
+                        <div class="flex-grow-1 ms-3">
+                            <h4 class="mb-1">@Model.TotalColumns</h4>
+                            <p class="text-muted mb-0">Columns</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-xl-3 col-md-6 mb-4">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-body">
+                    <div class="d-flex align-items-center">
+                        <div class="flex-shrink-0">
+                            <div class="bg-warning bg-opacity-10 rounded-circle p-3">
+                                <i class="fas fa-search fa-2x text-warning"></i>
+                            </div>
+                        </div>
+                        <div class="flex-grow-1 ms-3">
+                            <h4 class="mb-1">@Model.TotalQueries</h4>
+                            <p class="text-muted mb-0">Queries Executed</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <!-- Database Distribution Chart -->
+        <div class="col-lg-6 mb-4">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-header bg-transparent border-0">
+                    <h5 class="mb-0"><i class="fas fa-chart-pie me-2"></i>Database Distribution</h5>
+                </div>
+                <div class="card-body">
+                    <canvas id="databaseChart" width="400" height="200"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <!-- Recent Activity -->
+        <div class="col-lg-6 mb-4">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-header bg-transparent border-0 d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0"><i class="fas fa-clock me-2"></i>Recent Activity</h5>
+                    <small class="text-muted">Last 24 hours</small>
+                </div>
+                <div class="card-body p-0">
+                    <div class="list-group list-group-flush">
+                        @if (Model.RecentQueries.Any())
+                        {
+                            @foreach (var query in Model.RecentQueries.Take(5))
+                            {
+                                <div class="list-group-item border-0">
+                                    <div class="d-flex w-100 justify-content-between">
+                                        <h6 class="mb-1 text-truncate">@(query.Sql.Length > 50 ? query.Sql.Substring(0, 50) + "..." : query.Sql)</h6>
+                                        <small class="text-muted">@query.ExecutedAt.ToString("HH:mm")</small>
+                                    </div>
+                                    <p class="mb-1 text-muted small">@query.ConnectionName • @query.RowCount rows • @query.DurationMs ms</p>
+                                </div>
+                            }
+                        }
+                        else
+                        {
+                            <div class="list-group-item border-0 text-center text-muted py-4">
+                                <i class="fas fa-inbox fa-2x mb-2"></i>
+                                <p class="mb-0">No recent activity</p>
+                            </div>
+                        }
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <!-- Recent Connections -->
+        <div class="col-lg-6 mb-4">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-header bg-transparent border-0 d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0"><i class="fas fa-plug me-2"></i>Recent Connections</h5>
+                    <a href="@Url.Action("Index", "Connections")" class="btn btn-sm btn-outline-primary">View All</a>
+                </div>
+                <div class="card-body p-0">
+                    @if (Model.RecentConnections.Any())
+                    {
+                        <div class="list-group list-group-flush">
+                            @foreach (var conn in Model.RecentConnections)
+                            {
+                                <div class="list-group-item border-0">
+                                    <div class="d-flex align-items-center">
+                                        <div class="flex-shrink-0">
+                                            <div class="bg-light rounded-circle p-2">
+                                                <i class="fas fa-database text-primary"></i>
+                                            </div>
+                                        </div>
+                                        <div class="flex-grow-1 ms-3">
+                                            <h6 class="mb-1">@conn.Name</h6>
+                                            <p class="mb-0 text-muted small">
+                                                @conn.Provider • @conn.TableCount tables • @conn.CreatedAt.ToString("MMM dd, yyyy")
+                                            </p>
+                                        </div>
+                                        <div class="flex-shrink-0">
+                                            <a href="@Url.Action("Edit", "Connections", new { id = conn.Id })" class="btn btn-sm btn-outline-secondary">
+                                                <i class="fas fa-edit"></i>
+                                            </a>
+                                        </div>
+                                    </div>
+                                </div>
+                            }
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="text-center text-muted py-4">
+                            <i class="fas fa-database fa-2x mb-2"></i>
+                            <p class="mb-0">No connections yet</p>
+                            <a href="@Url.Action("Create", "Connections")" class="btn btn-primary btn-sm mt-2">
+                                <i class="fas fa-plus me-1"></i>Add First Connection
+                            </a>
+                        </div>
+                    }
+                </div>
+            </div>
+        </div>
+
+        <!-- Quick Actions -->
+        <div class="col-lg-6 mb-4">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-header bg-transparent border-0">
+                    <h5 class="mb-0"><i class="fas fa-bolt me-2"></i>Quick Actions</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row g-3">
+                        <div class="col-6">
+                            <a href="@Url.Action("Create", "Connections")" class="card text-decoration-none h-100">
+                                <div class="card-body text-center p-3">
+                                    <i class="fas fa-plus-circle fa-2x text-primary mb-2"></i>
+                                    <h6 class="mb-0">Add Connection</h6>
+                                </div>
+                            </a>
+                        </div>
+                        <div class="col-6">
+                            <a href="@Url.Action("Index", "Chat")" class="card text-decoration-none h-100">
+                                <div class="card-body text-center p-3">
+                                    <i class="fas fa-comments fa-2x text-success mb-2"></i>
+                                    <h6 class="mb-0">Start Chat</h6>
+                                </div>
+                            </a>
+                        </div>
+                        <div class="col-6">
+                            <a href="@Url.Action("QueryEnhancer", "Chat")" class="card text-decoration-none h-100">
+                                <div class="card-body text-center p-3">
+                                    <i class="fas fa-magic fa-2x text-warning mb-2"></i>
+                                    <h6 class="mb-0">Query Enhancer</h6>
+                                </div>
+                            </a>
+                        </div>
+                        <div class="col-6">
+                            <a href="@Url.Action("Index", "Connections")" class="card text-decoration-none h-100">
+                                <div class="card-body text-center p-3">
+                                    <i class="fas fa-list fa-2x text-info mb-2"></i>
+                                    <h6 class="mb-0">Manage Connections</h6>
+                                </div>
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+.bg-gradient-primary {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+}
+
+.card {
+    transition: transform 0.2s ease-in-out;
+}
+
+.card:hover {
+    transform: translateY(-2px);
+}
+
+.list-group-item:hover {
+    background-color: #f8f9fa;
+}
+
+.quick-action-card {
+    transition: all 0.2s ease-in-out;
+}
+
+.quick-action-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+}
+</style>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Database Distribution Chart
+    const ctx = document.getElementById('databaseChart').getContext('2d');
+    const databaseData = @Html.Raw(Json.Serialize(Model.DatabaseStats));
+    
+    const labels = databaseData.map(d => d.provider);
+    const data = databaseData.map(d => d.count);
+    const colors = ['#667eea', '#764ba2', '#f093fb', '#f5576c', '#4facfe'];
+    
+    new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+            labels: labels,
+            datasets: [{
+                data: data,
+                backgroundColor: colors,
+                borderWidth: 0,
+                hoverOffset: 4
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    position: 'bottom',
+                    labels: {
+                        padding: 20,
+                        usePointStyle: true
+                    }
+                }
+            },
+            cutout: '60%'
+        }
+    });
+
+    // Auto-refresh stats every 30 seconds
+    setInterval(async function() {
+        try {
+            const response = await fetch('@Url.Action("GetStats")');
+            const stats = await response.json();
+            
+            // Update statistics cards
+            document.querySelectorAll('.stat-card').forEach(card => {
+                const statType = card.dataset.stat;
+                const valueElement = card.querySelector('h4');
+                if (valueElement && stats[statType] !== undefined) {
+                    valueElement.textContent = stats[statType];
+                }
+            });
+        } catch (error) {
+            console.log('Failed to refresh stats:', error);
+        }
+    }, 30000);
+});
+</script>

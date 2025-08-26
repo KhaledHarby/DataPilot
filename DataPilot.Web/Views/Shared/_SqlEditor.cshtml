@@ -1,0 +1,22 @@
+@{
+    var editorId = (string?)ViewData["SqlEditorId"] ?? "sqlEditor";
+    var initial = (string?)ViewData["SqlText"] ?? "";
+}
+<div id="@editorId" style="height:300px;border:1px solid var(--bs-border-color);"></div>
+<script>
+    (function(){
+        const txt = `@initial`.replaceAll('`','\`');
+        require.config({ paths: { 'vs': 'https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.50.0/min/vs' } });
+        require(['vs/editor/editor.main'], function () {
+            const ed = monaco.editor.create(document.getElementById('@editorId'), {
+                value: txt,
+                language: 'sql',
+                theme: (document.body.getAttribute('data-bs-theme') === 'dark') ? 'vs-dark' : 'vs',
+                minimap: { enabled: false },
+                automaticLayout: true
+            });
+            window.getSqlText = function() { return ed.getValue(); };
+            window.setSqlText = function(v) { ed.setValue(v||''); };
+        });
+    })();
+</script>

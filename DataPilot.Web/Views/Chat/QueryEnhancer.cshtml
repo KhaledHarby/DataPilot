@@ -1,0 +1,823 @@
+@{
+    ViewData["Title"] = "Query Enhancer";
+}
+<div class="container-fluid py-4">
+    <div class="row">
+        <!-- Left Panel - Schema Selection -->
+        <div class="col-lg-4">
+            <div class="card shadow-sm border-0 mb-4">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0"><i class="fas fa-database me-2"></i>Schema Selection</h5>
+                </div>
+                <div class="card-body">
+                    <!-- Connection Selection -->
+                    <div class="mb-3">
+                        <label class="form-label fw-bold text-muted small">Database Connection</label>
+                        <select id="connectionId" class="form-select form-select-sm">
+                            <option value="">Select a connection...</option>
+                            @{
+                                var conns = ViewData["Connections"] as IEnumerable<DataPilot.Web.Data.DbConnectionInfo> ?? new List<DataPilot.Web.Data.DbConnectionInfo>();
+                            }
+                            @foreach (var c in conns)
+                            {
+                                <option value="@c.Id">@c.Name (@c.Provider)</option>
+                            }
+                        </select>
+                    </div>
+
+                    <!-- Table Selection -->
+                    <div class="mb-3">
+                        <label class="form-label fw-bold text-muted small">Select Tables</label>
+                        <div class="d-flex gap-2 mb-2">
+                            <button id="btnSelectAllTables" class="btn btn-sm btn-outline-primary" disabled>
+                                <i class="fas fa-check-double me-1"></i>Select All
+                            </button>
+                            <button id="btnClearAllTables" class="btn btn-sm btn-outline-secondary" disabled>
+                                <i class="fas fa-times me-1"></i>Clear All
+                            </button>
+                        </div>
+                        <div id="tableSelection" class="border rounded p-2" style="max-height: 200px; overflow-y: auto;">
+                            <div class="text-center text-muted py-3">
+                                <i class="fas fa-table fa-2x mb-2"></i>
+                                <p class="mb-0">Select a connection to view tables</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Column Selection -->
+                    <div class="mb-3">
+                        <label class="form-label fw-bold text-muted small">Select Columns (Optional)</label>
+                        <div class="d-flex gap-2 mb-2">
+                            <button id="btnSelectAllColumns" class="btn btn-sm btn-outline-primary" disabled>
+                                <i class="fas fa-check-double me-1"></i>Select All
+                            </button>
+                            <button id="btnClearAllColumns" class="btn btn-sm btn-outline-secondary" disabled>
+                                <i class="fas fa-times me-1"></i>Clear All
+                            </button>
+                        </div>
+                        <div id="columnSelection" class="border rounded p-2" style="max-height: 300px; overflow-y: auto;">
+                            <div class="text-center text-muted py-3">
+                                <i class="fas fa-columns fa-2x mb-2"></i>
+                                <p class="mb-0">Select tables to view columns</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Custom Context -->
+                    <div class="mb-3">
+                        <label class="form-label fw-bold text-muted small">Custom Context (Optional)</label>
+                        <textarea id="customContext" class="form-control" rows="4" placeholder="Add any additional context, business rules, or specific requirements for the query..."></textarea>
+                        <small class="text-muted">This will be included in the prompt to help generate more accurate SQL.</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Right Panel - Query Generation -->
+        <div class="col-lg-8">
+            <div class="card shadow-sm border-0">
+                <div class="card-header bg-gradient-primary text-white">
+                    <h4 class="mb-0"><i class="fas fa-magic me-2"></i>Query Enhancer</h4>
+                </div>
+                <div class="card-body p-0">
+                    <!-- Configuration Panel -->
+                    <div class="p-4 border-bottom">
+                        <div class="row g-3">
+                            <div class="col-md-4">
+                                <label class="form-label fw-bold text-muted small">AI Provider</label>
+                                <select id="provider" class="form-select form-select-sm">
+                                    @{
+                                        var providers = ViewData["Providers"] as IEnumerable<string> ?? new List<string>();
+                                        var defProv = ViewData["DefaultProvider"] as string ?? "";
+                                    }
+                                    @foreach (var p in providers)
+                                    {
+                                        var isSel = string.Equals(p, defProv, System.StringComparison.OrdinalIgnoreCase);
+                                        <option value="@p" selected="@(isSel ? "selected" : null)">@p</option>
+                                    }
+                                </select>
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label fw-bold text-muted small">Model</label>
+                                <input id="model" class="form-control form-control-sm" value="@((ViewData["DefaultModel"] as string) ?? "")" placeholder="e.g. gpt-4o, llama3.1" />
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label fw-bold text-muted small">Selected Items</label>
+                                <div class="d-flex gap-2">
+                                    <span id="selectedTablesCount" class="badge bg-primary">0 tables</span>
+                                    <span id="selectedColumnsCount" class="badge bg-info">0 columns</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Prompt Input -->
+                    <div class="p-4">
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">Your Query Request</label>
+                            <textarea id="prompt" class="form-control" rows="4" placeholder="Describe what you want to query... (e.g., 'Show me all users who registered in the last 30 days and their total orders')"></textarea>
+                        </div>
+                        <div class="d-flex gap-2">
+                            <button id="btnGenerate" class="btn btn-primary" disabled>
+                                <i class="fas fa-magic me-1"></i>Generate Enhanced SQL
+                            </button>
+                            <button id="btnClear" class="btn btn-outline-secondary">
+                                <i class="fas fa-trash me-1"></i>Clear All
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Generated SQL Panel -->
+            <div id="sqlPanel" class="card shadow-sm border-0 mt-4" style="display: none;">
+                <div class="card-header bg-success text-white">
+                    <h6 class="mb-0"><i class="fas fa-code me-2"></i>Generated SQL Query</h6>
+                </div>
+                <div class="card-body">
+                    <div class="mb-3">
+                        <textarea id="sql" class="form-control font-monospace" rows="8" readonly style="font-size: 0.9rem; background: #f8f9fa;"></textarea>
+                    </div>
+                    <div class="d-flex gap-2">
+                        <button id="btnRun" class="btn btn-success">
+                            <i class="fas fa-play me-1"></i>Execute Query
+                        </button>
+                        <button id="btnCopy" class="btn btn-outline-secondary">
+                            <i class="fas fa-copy me-1"></i>Copy SQL
+                        </button>
+                        <button id="btnEdit" class="btn btn-outline-primary">
+                            <i class="fas fa-edit me-1"></i>Edit SQL
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Results Panel -->
+            <div id="results" class="card shadow-sm border-0 mt-4" style="display: none;">
+                <div class="card-header bg-info text-white d-flex justify-content-between align-items-center">
+                    <h6 class="mb-0"><i class="fas fa-table me-2"></i>Query Results</h6>
+                    <span id="resultStats" class="badge bg-light text-dark"></span>
+                </div>
+                <div class="card-body p-0">
+                    <div id="resultTable" class="p-3"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Column Metadata Modal -->
+<div class="modal fade" id="columnMetadataModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="fas fa-edit me-2"></i>Edit Column Metadata</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <label class="form-label fw-bold">Column Name</label>
+                    <input type="text" id="modalColumnName" class="form-control" readonly />
+                </div>
+                <div class="mb-3">
+                    <label class="form-label fw-bold">Display Name</label>
+                    <input type="text" id="modalDisplayName" class="form-control" placeholder="Enter a user-friendly display name..." />
+                    <small class="text-muted">This will be used in the prompt to provide context about what this column represents.</small>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label fw-bold">Description</label>
+                    <textarea id="modalDescription" class="form-control" rows="4" placeholder="Enter a detailed description of this column's purpose, business meaning, or usage..."></textarea>
+                    <small class="text-muted">This will be included in the prompt to help the AI understand the business context of this column.</small>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" id="btnSaveMetadata" class="btn btn-primary">
+                    <i class="fas fa-save me-1"></i>Save Metadata
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Loading Modal -->
+<div class="modal fade" id="loadingModal" tabindex="-1" data-bs-backdrop="static">
+    <div class="modal-dialog modal-sm modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-body text-center p-4">
+                <div class="spinner-border text-primary mb-3" role="status">
+                    <span class="visually-hidden">Loading...</span>
+                </div>
+                <p class="mb-0" id="loadingText">Processing your request...</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+.bg-gradient-primary {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+}
+
+.font-monospace {
+    font-family: 'Courier New', monospace;
+}
+
+.schema-item {
+    cursor: pointer;
+    transition: background-color 0.2s ease;
+}
+
+.schema-item:hover {
+    background-color: #f8f9fa;
+}
+
+.schema-item.selected {
+    background-color: #e3f2fd;
+    border-color: #2196f3;
+}
+
+.table-responsive {
+    max-height: 500px;
+    overflow-y: auto;
+}
+
+.table th {
+    position: sticky;
+    top: 0;
+    background: white;
+    z-index: 1;
+}
+
+.column-item {
+    border: 1px solid #dee2e6;
+    border-radius: 0.375rem;
+    margin-bottom: 0.5rem;
+    transition: all 0.2s ease;
+}
+
+.column-item:hover {
+    border-color: #0d6efd;
+    box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+}
+
+.column-header {
+    background-color: #f8f9fa;
+    padding: 0.5rem;
+    border-bottom: 1px solid #dee2e6;
+    border-radius: 0.375rem 0.375rem 0 0;
+}
+
+.column-body {
+    padding: 0.5rem;
+}
+
+.metadata-badge {
+    font-size: 0.75rem;
+    padding: 0.25rem 0.5rem;
+}
+
+.edit-metadata-btn {
+    font-size: 0.75rem;
+    padding: 0.25rem 0.5rem;
+}
+</style>
+
+<script>
+let selectedTables = new Set();
+let selectedColumns = new Set();
+let currentConnectionId = null;
+let currentEditingColumn = null;
+
+// Event Listeners
+document.getElementById('connectionId').addEventListener('change', async function() {
+    const connectionId = this.value;
+    if (!connectionId) {
+        resetTableSelection();
+        return;
+    }
+
+    currentConnectionId = connectionId;
+    await loadTables(connectionId);
+});
+
+document.getElementById('btnSelectAllTables').addEventListener('click', function() {
+    const checkboxes = document.querySelectorAll('#tableSelection input[type="checkbox"]');
+    checkboxes.forEach(cb => {
+        cb.checked = true;
+        selectedTables.add(cb.value);
+    });
+    updateTableSelection();
+    updateGenerateButton();
+});
+
+document.getElementById('btnClearAllTables').addEventListener('click', function() {
+    const checkboxes = document.querySelectorAll('#tableSelection input[type="checkbox"]');
+    checkboxes.forEach(cb => {
+        cb.checked = false;
+        selectedTables.delete(cb.value);
+    });
+    updateTableSelection();
+    resetColumnSelection();
+    updateGenerateButton();
+});
+
+document.getElementById('btnSelectAllColumns').addEventListener('click', function() {
+    const checkboxes = document.querySelectorAll('#columnSelection input[type="checkbox"]');
+    checkboxes.forEach(cb => {
+        cb.checked = true;
+        selectedColumns.add(cb.value);
+    });
+    updateColumnSelection();
+    updateGenerateButton();
+});
+
+document.getElementById('btnClearAllColumns').addEventListener('click', function() {
+    const checkboxes = document.querySelectorAll('#columnSelection input[type="checkbox"]');
+    checkboxes.forEach(cb => {
+        cb.checked = false;
+        selectedColumns.delete(cb.value);
+    });
+    updateColumnSelection();
+    updateGenerateButton();
+});
+
+document.getElementById('btnSaveMetadata').addEventListener('click', async function() {
+    if (!currentEditingColumn) return;
+
+    const displayName = document.getElementById('modalDisplayName').value.trim();
+    const description = document.getElementById('modalDescription').value.trim();
+
+    try {
+        const resp = await fetch('@Url.Action("SaveColumnMetadata")', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: new URLSearchParams({
+                columnId: currentEditingColumn.id,
+                displayName: displayName || '',
+                description: description || ''
+            })
+        });
+        const data = await resp.json();
+
+        if (data.success) {
+            // Update the column display in the UI
+            updateColumnDisplay(currentEditingColumn.id, displayName, description);
+            
+            // Close modal
+            bootstrap.Modal.getInstance(document.getElementById('columnMetadataModal')).hide();
+            
+            // Show success toast
+            showToast('Column metadata saved successfully!', 'success');
+        } else {
+            alert('Error: ' + data.error);
+        }
+    } catch (ex) {
+        alert('Error: ' + ex.message);
+    }
+});
+
+document.getElementById('btnGenerate').addEventListener('click', async function() {
+    const prompt = document.getElementById('prompt').value.trim();
+    if (!prompt) {
+        alert('Please enter a query request');
+        return;
+    }
+
+    if (selectedTables.size === 0) {
+        alert('Please select at least one table');
+        return;
+    }
+
+    const provider = document.getElementById('provider').value;
+    const model = document.getElementById('model').value;
+    const customContext = document.getElementById('customContext').value;
+
+    showLoading('Generating enhanced SQL query...');
+
+    try {
+        const resp = await fetch('@Url.Action("GenerateEnhancedSql")', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: new URLSearchParams({
+                prompt,
+                provider,
+                model,
+                connectionId: currentConnectionId,
+                selectedTables: Array.from(selectedTables).join(','),
+                selectedColumns: Array.from(selectedColumns).join(','),
+                customContext
+            })
+        });
+        const data = await resp.json();
+
+        if (data.success && data.sql) {
+            document.getElementById('sql').value = data.sql;
+            document.getElementById('sqlPanel').style.display = 'block';
+            document.getElementById('results').style.display = 'none';
+        } else {
+            alert('Error: ' + (data.error || 'Failed to generate SQL'));
+        }
+    } catch (ex) {
+        alert('Error: ' + ex.message);
+    } finally {
+        hideLoading();
+    }
+});
+
+document.getElementById('btnRun').addEventListener('click', async function() {
+    const sql = document.getElementById('sql').value;
+    if (!sql || !currentConnectionId) return;
+
+    this.disabled = true;
+    this.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Executing...';
+    
+    showLoading('Executing query...');
+    
+    try {
+        const resp = await fetch('@Url.Action("RunSql")', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: new URLSearchParams({ sql, connectionId: currentConnectionId })
+        });
+        const data = await resp.json();
+        
+        if (data.success) {
+            document.getElementById('resultStats').textContent = `${data.rowCount} rows in ${data.duration}ms`;
+            renderTable(data.data);
+            document.getElementById('results').style.display = 'block';
+        } else {
+            alert('Error: ' + data.error);
+        }
+    } catch (ex) {
+        alert('Error: ' + ex.message);
+    } finally {
+        this.disabled = false;
+        this.innerHTML = '<i class="fas fa-play me-1"></i>Execute Query';
+        hideLoading();
+    }
+});
+
+document.getElementById('btnCopy').addEventListener('click', function() {
+    const sql = document.getElementById('sql').value;
+    navigator.clipboard.writeText(sql).then(() => {
+        showToast('SQL copied to clipboard!', 'success');
+    });
+});
+
+document.getElementById('btnEdit').addEventListener('click', function() {
+    const sqlTextarea = document.getElementById('sql');
+    sqlTextarea.readOnly = !sqlTextarea.readOnly;
+    const btn = this;
+    if (sqlTextarea.readOnly) {
+        btn.innerHTML = '<i class="fas fa-edit me-1"></i>Edit SQL';
+        btn.className = 'btn btn-outline-primary';
+    } else {
+        btn.innerHTML = '<i class="fas fa-save me-1"></i>Save SQL';
+        btn.className = 'btn btn-primary';
+    }
+});
+
+document.getElementById('btnClear').addEventListener('click', function() {
+    document.getElementById('connectionId').value = '';
+    document.getElementById('prompt').value = '';
+    document.getElementById('customContext').value = '';
+    document.getElementById('sqlPanel').style.display = 'none';
+    document.getElementById('results').style.display = 'none';
+    resetTableSelection();
+    resetColumnSelection();
+    selectedTables.clear();
+    selectedColumns.clear();
+    updateGenerateButton();
+});
+
+// Functions
+async function loadTables(connectionId) {
+    try {
+        const resp = await fetch('@Url.Action("GetTables")', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: new URLSearchParams({ connectionId })
+        });
+        const tables = await resp.json();
+        
+        const container = document.getElementById('tableSelection');
+        if (tables.length === 0) {
+            container.innerHTML = '<div class="text-center text-muted py-3"><i class="fas fa-exclamation-triangle fa-2x mb-2"></i><p class="mb-0">No tables found</p></div>';
+            return;
+        }
+
+        let html = '';
+        tables.forEach(table => {
+            const displayName = table.displayName || table.name;
+            html += `
+                <div class="schema-item p-2 border rounded mb-1">
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" value="${table.id}" id="table_${table.id}">
+                        <label class="form-check-label" for="table_${table.id}">
+                            <strong>${table.name}</strong>
+                            ${table.displayName ? `<br><small class="text-muted">${table.displayName}</small>` : ''}
+                            ${table.description ? `<br><small class="text-muted">${table.description}</small>` : ''}
+                        </label>
+                    </div>
+                </div>
+            `;
+        });
+        container.innerHTML = html;
+
+        // Add event listeners to checkboxes
+        container.querySelectorAll('input[type="checkbox"]').forEach(cb => {
+            cb.addEventListener('change', function() {
+                if (this.checked) {
+                    selectedTables.add(this.value);
+                    loadColumns(this.value);
+                } else {
+                    selectedTables.delete(this.value);
+                    removeColumns(this.value);
+                }
+                updateTableSelection();
+                updateGenerateButton();
+            });
+        });
+
+        document.getElementById('btnSelectAllTables').disabled = false;
+        document.getElementById('btnClearAllTables').disabled = false;
+    } catch (ex) {
+        console.error('Error loading tables:', ex);
+    }
+}
+
+async function loadColumns(tableId) {
+    try {
+        const resp = await fetch('@Url.Action("GetColumns")', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: new URLSearchParams({ tableId })
+        });
+        const columns = await resp.json();
+        
+        const container = document.getElementById('columnSelection');
+        const existingContent = container.innerHTML;
+        
+        if (existingContent.includes('Select tables to view columns')) {
+            container.innerHTML = '';
+        }
+
+        let html = `<div class="mb-3"><h6 class="text-primary">Table: ${tableId}</h6>`;
+        columns.forEach(column => {
+            const hasMetadata = (column.displayName && column.displayName.trim()) || (column.description && column.description.trim());
+            html += `
+                <div class="column-item">
+                    <div class="column-header d-flex justify-content-between align-items-center">
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" value="${column.id}" id="column_${column.id}" data-table="${tableId}">
+                            <label class="form-check-label fw-bold" for="column_${column.id}">
+                                ${column.name} (${column.dataType})${column.isNullable ? ' NULL' : ' NOT NULL'}
+                            </label>
+                        </div>
+                        <div class="d-flex gap-1">
+                            ${hasMetadata ? '<span class="badge bg-success metadata-badge">Has Metadata</span>' : ''}
+                            <button class="btn btn-sm btn-outline-primary edit-metadata-btn" onclick="editColumnMetadata('${column.id}', '${column.name}', '${column.displayName || ''}', '${column.description || ''}')">
+                                <i class="fas fa-edit"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="column-body">
+                        ${column.displayName ? `<div class="mb-1"><strong>Display:</strong> ${column.displayName}</div>` : ''}
+                        ${column.description ? `<div class="mb-1"><strong>Description:</strong> ${column.description}</div>` : ''}
+                        ${!column.displayName && !column.description ? '<small class="text-muted">No metadata defined. Click edit to add.</small>' : ''}
+                    </div>
+                </div>
+            `;
+        });
+        html += '</div>';
+        container.innerHTML += html;
+
+        // Add event listeners to checkboxes
+        container.querySelectorAll('input[type="checkbox"]').forEach(cb => {
+            cb.addEventListener('change', function() {
+                if (this.checked) {
+                    selectedColumns.add(this.value);
+                } else {
+                    selectedColumns.delete(this.value);
+                }
+                updateColumnSelection();
+                updateGenerateButton();
+            });
+        });
+
+        document.getElementById('btnSelectAllColumns').disabled = false;
+        document.getElementById('btnClearAllColumns').disabled = false;
+    } catch (ex) {
+        console.error('Error loading columns:', ex);
+    }
+}
+
+function editColumnMetadata(columnId, columnName, displayName, description) {
+    currentEditingColumn = { id: columnId, name: columnName };
+    
+    document.getElementById('modalColumnName').value = columnName;
+    document.getElementById('modalDisplayName').value = displayName;
+    document.getElementById('modalDescription').value = description;
+    
+    new bootstrap.Modal(document.getElementById('columnMetadataModal')).show();
+}
+
+function updateColumnDisplay(columnId, displayName, description) {
+    const columnElement = document.querySelector(`#column_${columnId}`).closest('.column-item');
+    if (!columnElement) return;
+
+    const headerElement = columnElement.querySelector('.column-header');
+    const bodyElement = columnElement.querySelector('.column-body');
+    
+    // Update metadata badge
+    const hasMetadata = (displayName && displayName.trim()) || (description && description.trim());
+    const badgeElement = headerElement.querySelector('.metadata-badge');
+    
+    if (hasMetadata) {
+        if (!badgeElement) {
+            headerElement.querySelector('.d-flex').insertAdjacentHTML('afterbegin', '<span class="badge bg-success metadata-badge">Has Metadata</span>');
+        }
+    } else {
+        if (badgeElement) {
+            badgeElement.remove();
+        }
+    }
+    
+    // Update body content
+    let bodyContent = '';
+    if (displayName) {
+        bodyContent += `<div class="mb-1"><strong>Display:</strong> ${displayName}</div>`;
+    }
+    if (description) {
+        bodyContent += `<div class="mb-1"><strong>Description:</strong> ${description}</div>`;
+    }
+    if (!displayName && !description) {
+        bodyContent = '<small class="text-muted">No metadata defined. Click edit to add.</small>';
+    }
+    
+    bodyElement.innerHTML = bodyContent;
+}
+
+function removeColumns(tableId) {
+    const container = document.getElementById('columnSelection');
+    const columnsToRemove = container.querySelectorAll(`input[data-table="${tableId}"]`);
+    columnsToRemove.forEach(cb => {
+        selectedColumns.delete(cb.value);
+        cb.closest('.mb-3').remove();
+    });
+    updateColumnSelection();
+    updateGenerateButton();
+}
+
+function resetTableSelection() {
+    document.getElementById('tableSelection').innerHTML = `
+        <div class="text-center text-muted py-3">
+            <i class="fas fa-table fa-2x mb-2"></i>
+            <p class="mb-0">Select a connection to view tables</p>
+        </div>
+    `;
+    document.getElementById('btnSelectAllTables').disabled = true;
+    document.getElementById('btnClearAllTables').disabled = true;
+}
+
+function resetColumnSelection() {
+    document.getElementById('columnSelection').innerHTML = `
+        <div class="text-center text-muted py-3">
+            <i class="fas fa-columns fa-2x mb-2"></i>
+            <p class="mb-0">Select tables to view columns</p>
+        </div>
+    `;
+    document.getElementById('btnSelectAllColumns').disabled = true;
+    document.getElementById('btnClearAllColumns').disabled = true;
+}
+
+function updateTableSelection() {
+    document.getElementById('selectedTablesCount').textContent = `${selectedTables.size} tables`;
+}
+
+function updateColumnSelection() {
+    document.getElementById('selectedColumnsCount').textContent = `${selectedColumns.size} columns`;
+}
+
+function updateGenerateButton() {
+    const prompt = document.getElementById('prompt').value.trim();
+    const hasTables = selectedTables.size > 0;
+    const hasPrompt = prompt.length > 0;
+    document.getElementById('btnGenerate').disabled = !(hasTables && hasPrompt);
+}
+
+function showLoading(text = 'Processing your request...') {
+    document.getElementById('loadingText').textContent = text;
+    new bootstrap.Modal(document.getElementById('loadingModal')).show();
+}
+
+function hideLoading() {
+    bootstrap.Modal.getInstance(document.getElementById('loadingModal')).hide();
+}
+
+function showToast(message, type = 'info') {
+    const toast = document.createElement('div');
+    toast.className = 'position-fixed top-0 end-0 p-3';
+    toast.style.zIndex = '9999';
+    
+    const bgClass = type === 'success' ? 'bg-success' : type === 'error' ? 'bg-danger' : 'bg-info';
+    const icon = type === 'success' ? 'fa-check' : type === 'error' ? 'fa-exclamation-triangle' : 'fa-info-circle';
+    
+    toast.innerHTML = `
+        <div class="toast show" role="alert">
+            <div class="toast-header">
+                <i class="fas ${icon} text-${type} me-2"></i>
+                <strong class="me-auto">${type.charAt(0).toUpperCase() + type.slice(1)}</strong>
+                <button type="button" class="btn-close" data-bs-dismiss="toast"></button>
+            </div>
+            <div class="toast-body">${message}</div>
+        </div>
+    `;
+    document.body.appendChild(toast);
+    setTimeout(() => toast.remove(), 3000);
+}
+
+function renderTable(dataTable) {
+    const container = document.getElementById('resultTable');
+    
+    if (!dataTable || !dataTable.rows || dataTable.rows.length === 0) {
+        container.innerHTML = '<div class="alert alert-info">No results</div>';
+        return;
+    }
+
+    const rows = dataTable.rows;
+    if (rows.length === 0) {
+        container.innerHTML = '<div class="alert alert-info">No results</div>';
+        return;
+    }
+
+    // Get column names from the first row
+    const columns = Object.keys(rows[0]);
+    
+    let html = '<div class="table-responsive"><table class="table table-sm table-striped table-hover">';
+    html += '<thead class="table-dark"><tr>';
+    columns.forEach(col => html += `<th>${col}</th>`);
+    html += '</tr></thead><tbody>';
+    
+    rows.forEach(row => {
+        html += '<tr>';
+        columns.forEach(col => {
+            const value = row[col];
+            // Handle null, undefined, and DBNull values
+            const displayValue = value === null || value === undefined || value === '' ? '<em class="text-muted">null</em>' : value;
+            html += `<td>${displayValue}</td>`;
+        });
+        html += '</tr>';
+    });
+    
+    html += '</tbody></table></div>';
+    
+    // Add export button
+    html += `
+        <div class="mt-3">
+            <button class="btn btn-outline-success btn-sm" onclick="exportToCSV()">
+                <i class="fas fa-download me-1"></i>Export CSV
+            </button>
+        </div>
+    `;
+    
+    container.innerHTML = html;
+}
+
+function exportToCSV() {
+    const table = document.querySelector('#resultTable table');
+    if (!table) return;
+    
+    const rows = [];
+    const headers = [];
+    
+    // Get headers
+    table.querySelectorAll('thead th').forEach(th => {
+        headers.push(th.textContent);
+    });
+    rows.push(headers.join(','));
+    
+    // Get data rows
+    table.querySelectorAll('tbody tr').forEach(tr => {
+        const cells = [];
+        tr.querySelectorAll('td').forEach(td => {
+            const text = td.textContent.replace(/"/g, '""');
+            cells.push(`"${text}"`);
+        });
+        rows.push(cells.join(','));
+    });
+    
+    const csv = rows.join('\n');
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'query_results.csv';
+    a.click();
+    window.URL.revokeObjectURL(url);
+}
+
+// Update generate button state when prompt changes
+document.getElementById('prompt').addEventListener('input', updateGenerateButton);
+</script>

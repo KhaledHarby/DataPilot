@@ -1,0 +1,13 @@
+@model DataPilot.Web.Data.DbConnectionInfo
+@{
+    ViewData["Title"] = "Delete Connection";
+}
+<div class="container py-3">
+    <h2>Delete Connection</h2>
+    <div class="alert alert-warning">Are you sure you want to delete <strong>@Model.Name</strong>? This will remove associated tables and columns.</div>
+    <form method="post">
+        <button class="btn btn-danger" type="submit">Delete</button>
+        <a class="btn btn-secondary" asp-action="Index">Cancel</a>
+    </form>
+</div>
+

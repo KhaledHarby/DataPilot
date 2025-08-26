@@ -1,0 +1,49 @@
+@{
+    var table = ViewData["ResultTable"] as System.Data.DataTable;
+}
+@if (table is null)
+{
+    <div class="alert alert-info">No results.</div>
+}
+else
+{
+    <div class="table-responsive">
+        <table class="table table-sm table-striped">
+            <thead>
+                <tr>
+                    @foreach (System.Data.DataColumn col in table.Columns)
+                    {
+                        <th>@col.ColumnName</th>
+                    }
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (System.Data.DataRow row in table.Rows)
+                {
+                    <tr>
+                        @foreach (System.Data.DataColumn col in table.Columns)
+                        {
+                            <td>@row[col]</td>
+                        }
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+    <button class="btn btn-outline-secondary" type="button" onclick="exportCsv()"><i class="fa-solid fa-file-csv"></i> Export CSV</button>
+    <script>
+        function exportCsv() {
+            const rows = [];
+            const table = document.querySelector('table');
+            for (const tr of table.querySelectorAll('tr')) {
+                const cells = [...tr.querySelectorAll('th,td')].map(td => '"' + (td.textContent||'').replaceAll('"','""') + '"');
+                rows.push(cells.join(','));
+            }
+            const blob = new Blob([rows.join('\n')], { type: 'text/csv' });
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(blob);
+            a.download = 'results.csv';
+            a.click();
+        }
+    </script>
+}

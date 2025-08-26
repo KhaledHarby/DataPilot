@@ -1,0 +1,36 @@
+@model DataPilot.Web.Data.DbConnectionInfo
+@{
+    ViewData["Title"] = "Add Connection";
+}
+<div class="container py-3">
+    <h2>Add Connection</h2>
+    <form asp-action="Create" method="post">
+        <div class="mb-3">
+            <label class="form-label">Name</label>
+            <input class="form-control" asp-for="Name" />
+        </div>
+        <div class="mb-3">
+            <label class="form-label">Provider</label>
+            <select class="form-select" asp-for="Provider">
+                <option value="0">SqlServer</option>
+                <option value="1">MySql</option>
+                <option value="2">Oracle</option>
+                <option value="3">Mongo</option>
+            </select>
+        </div>
+        <div class="mb-3">
+            <label class="form-label">Connection String</label>
+            <input class="form-control" name="connectionStringPlain" />
+        </div>
+        <button class="btn btn-primary" type="submit">Save</button>
+        <a class="btn btn-secondary" asp-action="Index">Cancel</a>
+    </form>
+    <div class="text-danger">
+        @foreach (var m in ViewData.ModelState.Values.SelectMany(v => v.Errors))
+        {
+            <div>@m.ErrorMessage</div>
+        }
+    </div>
+</div>
+
+
